@@ -196,3 +196,5 @@ def plot_results(results):
         plt.grid(visible=True)
         plt.legend(fontsize='14', loc='upper right')
         plt.tight_layout()
+
+        plt.show()

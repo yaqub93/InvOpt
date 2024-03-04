@@ -1,0 +1,4 @@
+invopt
+gurobipy==10.0.3
+numpy
+cvxpy

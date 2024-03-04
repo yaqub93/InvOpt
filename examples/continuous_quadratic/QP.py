@@ -186,6 +186,7 @@ print('')
 # Tested approaches
 approaches = ['SL', 'ASL']
 len_appr = len(approaches)
+verbose = True
 
 # Initialize arrays to store results
 theta_diff_hist = np.empty((len_appr, runs, resolution))
@@ -214,7 +215,8 @@ for p_index, approach in enumerate(approaches):
             theta_IO = iop.continuous_quadratic(dataset_train[:N],
                                                 phi1,
                                                 add_dist_func_y=add_y,
-                                                reg_param=kappa)
+                                                reg_param=kappa,
+                                                verbose=verbose)
 
             x_diff_train, obj_diff_train, theta_diff = \
                 iop.evaluate(theta_IO,
