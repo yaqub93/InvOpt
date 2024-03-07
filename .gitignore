@@ -8,6 +8,8 @@ old/
 
 src/invopt.egg-info/
 
+experimental/__pycache__/
+
 examples/__pycache__/
 
 src/invopt/__pycache__/
