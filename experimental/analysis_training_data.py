@@ -183,80 +183,19 @@ print('Done!')
 print(f"Create dataset time = {round(toc_dataset-tic_dataset,2)} seconds")
 print('')
 
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%% Solve IO problem %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-# Tested approaches
-approaches = ['SL', 'ASL']
-len_appr = len(approaches)
-verbose = True
-solver = None #'XPRESS'
-
-# Initialize arrays to store results
-theta_diff_hist = np.empty((len_appr, runs, resolution))
-x_diff_train_hist = np.empty((len_appr, runs, resolution))
-x_diff_test_hist = np.empty((len_appr, runs, resolution))
-obj_diff_train_hist = np.empty((len_appr, runs, resolution))
-obj_diff_test_hist = np.empty((len_appr, runs, resolution))
-
-gap = round(N_train/resolution)
-N_list = np.linspace(gap, N_train, resolution, dtype=int).tolist()
-for p_index, approach in enumerate(approaches):
-    print(f'Approach: {approach}')
-
-    if approach == 'SL':
-        add_y = False
-    else:
-        add_y = True
-
-    theta_IOs = []
-    tic = time.time()
-    for run in range(runs):
-        dataset_train = dataset_train_runs[run]
-        dataset_test = dataset_test_runs[run]
-        theta_true = theta_true_runs[run]
-
-        for N_index, N in enumerate(N_list): 
-            theta_IO = iop.continuous_quadratic(dataset_train[:N],
-                                                phi1,
-                                                add_dist_func_y=add_y,
-                                                reg_param=kappa,
-                                                solver=solver,
-                                                verbose=verbose)
-            theta_IOs.append(theta_IO)
-            x_diff_train, obj_diff_train, theta_diff = iop.evaluate(
-                theta_IO, dataset_train[:N], quadratic_FOP, L2,
-                theta_true=theta_true, phi=phi
-            )
-
-            x_diff_test, obj_diff_test, _ = iop.evaluate(
-                theta_IO, dataset_test, quadratic_FOP, L2,
-                theta_true=theta_true, phi=phi
-            )
-
-            x_diff_train_hist[p_index, run, N_index] = x_diff_train
-            obj_diff_train_hist[p_index, run, N_index] = obj_diff_train
-            x_diff_test_hist[p_index, run, N_index] = x_diff_test
-            obj_diff_test_hist[p_index, run, N_index] = obj_diff_test
-            theta_diff_hist[p_index, run, N_index] = theta_diff
-
-        print(f'{round(100*(run+1)/runs)}%')
-
-    toc = time.time()
-    print(f"Simulation time = {round(toc-tic,2)} seconds")
-    print('')
-    print(theta_true)
-    print(len(theta_IOs))
-    print(theta_IOs)
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%% Plot results %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-results = {}
-results['approaches'] = approaches
-results['N_list'] = N_list
-results['theta_diff_hist'] = theta_diff_hist
-results['x_diff_train_hist'] = x_diff_train_hist
-results['x_diff_test_hist'] = x_diff_test_hist
-results['obj_diff_train_hist'] = obj_diff_train_hist
-results['obj_diff_test_hist'] = obj_diff_test_hist
-plot_results(results)
+input_signal = dataset_train_runs[0][0][0]
+output_responses = []
+for i in range(len(dataset_train_runs)):
+    for j in range(len(dataset_train_runs[i])):
+        output_response = dataset_train_runs[i][j][1]
+        output_responses.append(list(output_response))
+output_responses = np.array(output_responses)
+print(output_responses.shape)
+print(np.corrcoef(output_responses[:,0], output_responses[:,1]))
+print(np.corrcoef(output_responses[:,0], output_responses[:,2]))
+print(np.corrcoef(output_responses[:,2], output_responses[:,1]))
+import matplotlib.pyplot as plt 
+plt.plot(output_responses[:,0])
+plt.plot(output_responses[:,1])
+plt.plot(output_responses[:,2])
+#plt.show()

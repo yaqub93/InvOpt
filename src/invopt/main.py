@@ -704,6 +704,7 @@ def continuous_quadratic(
     regularizer='L2_squared',
     reg_param=0,
     theta_hat=None,
+    solver=None,
     verbose=False,
 ):
     """
@@ -777,6 +778,7 @@ def continuous_quadratic(
         regularizer=regularizer,
         reg_param=reg_param,
         theta_hat=theta_hat_mod,
+        solver=solver,
         verbose=verbose,
     )
 
@@ -798,6 +800,7 @@ def mixed_integer_linear(
     theta_hat=None,
     verbose=False,
     gurobi_params=None,
+    solver=None
 ):
     """
     Inverse optimization for mixed-integer FOPs with linear continuous part.
@@ -1126,6 +1129,7 @@ def mixed_integer_quadratic(
     regularizer='L2_squared',
     reg_param=0,
     theta_hat=None,
+    solver=None,
     verbose=False
 ):
     """
@@ -1341,7 +1345,7 @@ def mixed_integer_quadratic(
         constraints += [cp.trace(Qyy) == 1]
 
     prob = cp.Problem(obj, constraints)
-    prob.solve(verbose=verbose)
+    prob.solve(verbose=verbose, solver=cp.MOSEK)
 
     if prob.status != 'optimal':
         raise Exception(

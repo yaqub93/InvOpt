@@ -134,14 +134,38 @@ def phi(s, x):
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%% Simulation parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-N_train = 30
-N_test = 30
-n = 3
+import pickle
+file_path = "C:\\Users\\yaqpr\\AINavigator\\code\\ais-data-eda\\dataset_cog_at_t.pkl"
+with open(file_path, 'rb') as file:
+    dataset = pickle.load(file)
+feature_names = list(dataset.keys())
+
+import random 
+
+# Sample indices to select elements from lists
+sample_indices = random.sample(range(len(dataset[feature_names[0]])), k=3000)  # Change 'k' to the desired sample size
+
+# Sample elements from both lists using the sampled indices
+dataset = {feature_names[0]: [dataset[feature_names[0]][i] for i in sample_indices],
+                feature_names[1]: [dataset[feature_names[1]][i] for i in sample_indices]}
+
+data_size = len(dataset[feature_names[0]])
+
+feature_values = []
+for key,val in dataset.items():
+    feature_values.append(val)
+feature_values = np.array(feature_values).T
+print(feature_values.shape)
+training_size = 0.5
+
+N_train = int(training_size*data_size)
+N_test = data_size-N_train
+n = 2
 t = 2
 noise_level = 0
 kappa = 0
 resolution = 10
-runs = 3
+runs = 1
 
 print('')
 print(f'N_train = {N_train}')
@@ -156,6 +180,7 @@ print('')
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%% Create IO datasets %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+from sklearn.model_selection import train_test_split
 
 print("Creating datasets...")
 dataset_train_runs = []
@@ -166,15 +191,46 @@ grb_models_test_runs = []
 
 tic_dataset = time.time()
 for run in range(runs):
-    Q_temp = 0.5*(2*np.random.rand(n, n)-1)
-    Qxx_true = np.matmul(Q_temp, Q_temp.T)
-    qx_true = np.random.rand(n)
-    theta_true = Qq_to_theta(Qxx_true, qx_true)
-    theta_true_runs.append(theta_true)
+    #Q_temp = 0.5*(2*np.random.rand(n, n)-1)
+    #Qxx_true = np.matmul(Q_temp, Q_temp.T)
+    #qx_true = np.random.rand(n)
+    #theta_true = Qq_to_theta(Qxx_true, qx_true)
+    #theta_true_runs.append(theta_true)
 
-    dataset_train, dataset_test = create_datasets(
-        theta_true, quadratic_FOP, n, t, N_train, N_test, noise_level
-    )
+    #dataset_train, dataset_test = create_datasets(
+    #    theta_true, quadratic_FOP, n, t, N_train, N_test, noise_level
+    #)
+    
+    X_train, X_test = train_test_split(feature_values, test_size=1.0-training_size, random_state=42)
+    print(X_train.shape)
+    print(X_test.shape)
+    
+    dataset_train = []
+    for i in range(N_train):
+        A = np.eye(n)
+        b = np.array([1.0,5.0])
+
+        A2 = np.vstack((np.eye(n), -np.eye(n)))
+        b2 = np.hstack((np.ones(n), np.zeros(n)))
+        A = np.vstack((A, A2))
+        b = np.hstack((b, b2))
+
+        s_hat = (A, b, 0)
+        x_hat = X_train[i,:]
+        dataset_train.append((s_hat, x_hat))
+    dataset_test = []
+    for i in range(N_test):
+        A = np.eye(n)
+        b = np.array([1.0,5.0])
+
+        A2 = np.vstack((np.eye(n), -np.eye(n)))
+        b2 = np.hstack((np.ones(n), np.zeros(n)))
+        A = np.vstack((A, A2))
+        b = np.hstack((b, b2))
+
+        s_hat = (A, b, 0)
+        x_hat = X_test[i,:]
+        dataset_test.append((s_hat, x_hat))
     dataset_train_runs.append(dataset_train)
     dataset_test_runs.append(dataset_test)
 
@@ -193,11 +249,11 @@ verbose = True
 solver = None #'XPRESS'
 
 # Initialize arrays to store results
-theta_diff_hist = np.empty((len_appr, runs, resolution))
+#theta_diff_hist = np.empty((len_appr, runs, resolution))
 x_diff_train_hist = np.empty((len_appr, runs, resolution))
 x_diff_test_hist = np.empty((len_appr, runs, resolution))
-obj_diff_train_hist = np.empty((len_appr, runs, resolution))
-obj_diff_test_hist = np.empty((len_appr, runs, resolution))
+#obj_diff_train_hist = np.empty((len_appr, runs, resolution))
+#obj_diff_test_hist = np.empty((len_appr, runs, resolution))
 
 gap = round(N_train/resolution)
 N_list = np.linspace(gap, N_train, resolution, dtype=int).tolist()
@@ -214,7 +270,7 @@ for p_index, approach in enumerate(approaches):
     for run in range(runs):
         dataset_train = dataset_train_runs[run]
         dataset_test = dataset_test_runs[run]
-        theta_true = theta_true_runs[run]
+        #theta_true = theta_true_runs[run]
 
         for N_index, N in enumerate(N_list): 
             theta_IO = iop.continuous_quadratic(dataset_train[:N],
@@ -224,28 +280,27 @@ for p_index, approach in enumerate(approaches):
                                                 solver=solver,
                                                 verbose=verbose)
             theta_IOs.append(theta_IO)
-            x_diff_train, obj_diff_train, theta_diff = iop.evaluate(
+            x_diff_train = iop.evaluate(
                 theta_IO, dataset_train[:N], quadratic_FOP, L2,
-                theta_true=theta_true, phi=phi
+                theta_true=None, phi=phi
             )
 
-            x_diff_test, obj_diff_test, _ = iop.evaluate(
+            x_diff_test = iop.evaluate(
                 theta_IO, dataset_test, quadratic_FOP, L2,
-                theta_true=theta_true, phi=phi
+                theta_true=None, phi=phi
             )
 
             x_diff_train_hist[p_index, run, N_index] = x_diff_train
-            obj_diff_train_hist[p_index, run, N_index] = obj_diff_train
+            #obj_diff_train_hist[p_index, run, N_index] = obj_diff_train
             x_diff_test_hist[p_index, run, N_index] = x_diff_test
-            obj_diff_test_hist[p_index, run, N_index] = obj_diff_test
-            theta_diff_hist[p_index, run, N_index] = theta_diff
+            #obj_diff_test_hist[p_index, run, N_index] = obj_diff_test
+            #theta_diff_hist[p_index, run, N_index] = theta_diff
 
         print(f'{round(100*(run+1)/runs)}%')
 
     toc = time.time()
     print(f"Simulation time = {round(toc-tic,2)} seconds")
     print('')
-    print(theta_true)
     print(len(theta_IOs))
     print(theta_IOs)
 
@@ -254,9 +309,9 @@ for p_index, approach in enumerate(approaches):
 results = {}
 results['approaches'] = approaches
 results['N_list'] = N_list
-results['theta_diff_hist'] = theta_diff_hist
+#results['theta_diff_hist'] = theta_diff_hist
 results['x_diff_train_hist'] = x_diff_train_hist
 results['x_diff_test_hist'] = x_diff_test_hist
-results['obj_diff_train_hist'] = obj_diff_train_hist
-results['obj_diff_test_hist'] = obj_diff_test_hist
+#results['obj_diff_train_hist'] = obj_diff_train_hist
+#results['obj_diff_test_hist'] = obj_diff_test_hist
 plot_results(results)
