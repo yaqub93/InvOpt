@@ -240,6 +240,7 @@ def evaluate(
     theta_true=None,
     phi=None,
     scale_obj_diff=True,
+    sep_dist_func = None
 ):
     """
     Evaluate cost vector theta.
@@ -291,13 +292,16 @@ def evaluate(
 
     N = len(dataset)
 
+    x_diffs = []
     x_diff = 0
     obj_diff = 0
     for s_hat, x_hat in dataset:
         x_IO = FOP(theta, s_hat)
 
         # Response difference
-        x_diff += dist_func(x_hat, x_IO)
+        dist = dist_func(x_hat, x_IO)
+        x_diff += dist
+        x_diffs.append(sep_dist_func(x_hat, x_IO))
 
         if theta_true is not None:
             obj_IO = np.inner(theta_true, phi(s_hat, x_IO))
@@ -312,14 +316,19 @@ def evaluate(
     x_diff_avg = x_diff/N
     obj_diff_avg = obj_diff/N
 
+    x_diffs_avg = []
+    x_diffs = np.array(x_diffs).T
+    for i in range(len(x_diffs)):
+        x_diffs_avg.append(np.mean(x_diffs[i]))
+
     if theta_true is not None:
         theta_norm = theta/np.linalg.norm(theta)
         theta_true_norm = theta_true/np.linalg.norm(theta_true)
         # Cost vector difference
         theta_diff = np.linalg.norm(theta_norm - theta_true_norm)
-        results = (x_diff_avg, obj_diff_avg, theta_diff)
+        results = ((x_diff_avg, x_diffs_avg), obj_diff_avg, theta_diff)
     else:
-        results = x_diff_avg
+        results = (x_diff_avg, x_diffs_avg)
 
     return results
 

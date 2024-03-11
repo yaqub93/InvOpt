@@ -29,12 +29,17 @@ def L2(x1, x2):
     """L2 distance function."""
     return np.linalg.norm(x1-x2)
 
+def sep_L2(x1, x2):
+    """distance for each element"""
+    dists = []
+    for i in range(len(x1)):
+        dists.append((x1[i]-x2[i])**2)
+    return dists
 
 def linear_ind_func(s, x):
     """Check if x satisfies constraint set inequality."""
     A, b = s
     return (A @ x <= b).all()
-
 
 def binary_linear_FOP(theta, s, gurobi_params=None):
     """Forward optimization problem: binary linear program."""
@@ -130,6 +135,16 @@ def plot_results(results):
     else: 
         x_diff_test_hist = None
 
+    if "x_diffs_train_hist" in results.keys():
+        x_diffs_train_hist = results['x_diffs_train_hist']
+    else: 
+        x_diffs_train_hist = None
+
+    if "x_diffs_test_hist" in results.keys():
+        x_diffs_test_hist = results['x_diffs_test_hist']
+    else: 
+        x_diffs_test_hist = None
+
     if "obj_diff_train_hist" in results.keys():
         obj_diff_train_hist = results['obj_diff_train_hist']
     else: 
@@ -152,7 +167,7 @@ def plot_results(results):
             theta_diff_mean, theta_diff_p5, theta_diff_p95 = \
                 mean_percentiles(theta_diff_runs)
             
-            plt.figure(1)
+            plt.figure()
             plt.plot(N_list, theta_diff_mean, c=color, label=approach)
             plt.fill_between(
                 N_list, theta_diff_p5, theta_diff_p95, alpha=0.3, facecolor=color
@@ -173,7 +188,7 @@ def plot_results(results):
             x_diff_train_mean, x_diff_train_p5, x_diff_train_p95 = \
                 mean_percentiles(x_diff_train_runs)
             
-            plt.figure(2)
+            plt.figure()
             plt.plot(N_list, x_diff_train_mean, c=color, label=approach)
             plt.fill_between(
                 N_list, x_diff_train_p5, x_diff_train_p95, alpha=0.3,
@@ -189,11 +204,62 @@ def plot_results(results):
             plt.legend(fontsize='12', loc='lower left', ncol=1)
             plt.tight_layout()
             save_figure_with_datetime("x_diff_train_mean")
+        
+        if x_diffs_train_hist is not None:
+            x_diffs_train_runs = x_diffs_train_hist[a_index]
+            x_diffs_train_runs = np.array(x_diffs_train_runs)
+            for x_idx in range(x_diffs_train_runs.shape[2]):
+                plt.figure()
+                x_diff_train_mean, x_diff_train_p5, x_diff_train_p95 = \
+                    mean_percentiles(x_diffs_train_runs[:,:,x_idx])
+                
+                plt.plot(N_list, x_diff_train_mean, c=color, label=approach)
+                plt.fill_between(
+                    N_list, x_diff_train_p5, x_diff_train_p95, alpha=0.3,
+                    facecolor=color
+                )
+
+                plt.yscale('log')
+                plt.ylabel(
+                    r'$\| x_{\mathrm{IO}} - x_{\mathrm{true}} \|_2$', fontsize=18
+                )
+                plt.xlabel(r'Number of training examples', fontsize=14)
+                plt.grid(visible=True)
+                # plt.legend(fontsize='14', loc='upper right')
+                plt.legend(fontsize='12', loc='lower left', ncol=1)
+                plt.tight_layout()
+                save_figure_with_datetime("x_diffs_train_mean_"+str(x_idx))
+
+        if x_diffs_test_hist is not None:
+            x_diffs_test_runs = x_diffs_test_hist[a_index]
+            x_diffs_test_runs = np.array(x_diffs_test_runs)
+            for x_idx in range(x_diffs_test_runs.shape[2]):
+                plt.figure()
+                x_diff_test_mean, x_diff_test_p5, x_diff_test_p95 = \
+                    mean_percentiles(x_diffs_test_runs[:,:,x_idx])
+                
+                plt.plot(N_list, x_diff_test_mean, c=color, label=approach)
+                plt.fill_between(
+                    N_list, x_diff_test_p5, x_diff_test_p95, alpha=0.3,
+                    facecolor=color
+                )
+
+                plt.yscale('log')
+                plt.ylabel(
+                    r'$\| x_{\mathrm{IO}} - x_{\mathrm{true}} \|_2$', fontsize=18
+                )
+                plt.xlabel(r'Number of testing examples', fontsize=14)
+                plt.grid(visible=True)
+                # plt.legend(fontsize='14', loc='upper right')
+                plt.legend(fontsize='12', loc='lower left', ncol=1)
+                plt.tight_layout()
+                save_figure_with_datetime("x_diffs_test_mean_"+str(x_idx))
+
         if x_diff_test_hist is not None:
             x_diff_test_runs = x_diff_test_hist[a_index]
             x_diff_test_mean, x_diff_test_p5, x_diff_test_p95 = \
                 mean_percentiles(x_diff_test_runs)
-            plt.figure(4)
+            plt.figure()
             plt.plot(N_list, x_diff_test_mean, c=color, label=approach)
             plt.fill_between(
                 N_list, x_diff_test_p5, x_diff_test_p95, alpha=0.3, facecolor=color
@@ -212,7 +278,7 @@ def plot_results(results):
             obj_diff_train_runs = obj_diff_train_hist[a_index]
             obj_diff_train_mean, obj_diff_train_p5, obj_diff_train_p95 = \
                 mean_percentiles(obj_diff_train_runs)
-            plt.figure(3)
+            plt.figure()
             plt.plot(N_list, obj_diff_train_mean, c=color, label=approach)
             plt.fill_between(
                 N_list, obj_diff_train_p5, obj_diff_train_p95, alpha=0.3,
@@ -234,7 +300,7 @@ def plot_results(results):
             obj_diff_test_mean, obj_diff_test_p5, obj_diff_test_p95 = \
                 mean_percentiles(obj_diff_test_runs)
 
-            plt.figure(5)
+            plt.figure()
             plt.plot(N_list, obj_diff_test_mean, c=color, label=approach)
             plt.fill_between(
                 N_list, obj_diff_test_p5, obj_diff_test_p95, alpha=0.3,

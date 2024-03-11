@@ -14,7 +14,7 @@ sys.path.append(dirname(dirname(abspath(__file__))))  # nopep8
 sys.path.append("src")
 sys.path.append("examples")
 
-from experimental.utils_examples_ import L2, plot_results
+from experimental.utils_examples_ import L2, sep_L2, plot_results
 
 import invopt as iop
 
@@ -261,6 +261,9 @@ solver = None #'XPRESS'
 #theta_diff_hist = np.empty((len_appr, runs, resolution))
 x_diff_train_hist = np.empty((len_appr, runs, resolution))
 x_diff_test_hist = np.empty((len_appr, runs, resolution))
+x_dim = len(feature_names)
+x_diffs_train_hist = np.empty((len_appr, runs, resolution, x_dim))
+x_diffs_test_hist = np.empty((len_appr, runs, resolution, x_dim))
 #obj_diff_train_hist = np.empty((len_appr, runs, resolution))
 #obj_diff_test_hist = np.empty((len_appr, runs, resolution))
 
@@ -289,19 +292,22 @@ for p_index, approach in enumerate(approaches):
                                                 solver=solver,
                                                 verbose=verbose)
             theta_IOs.append(theta_IO)
-            x_diff_train = iop.evaluate(
+            x_diff_train, x_diffs_train = iop.evaluate(
                 theta_IO, dataset_train[:N], quadratic_FOP, L2,
-                theta_true=None, phi=phi
+                theta_true=None, phi=phi, sep_dist_func=sep_L2
             )
 
-            x_diff_test = iop.evaluate(
+            x_diff_test, x_diffs_test = iop.evaluate(
                 theta_IO, dataset_test, quadratic_FOP, L2,
-                theta_true=None, phi=phi
+                theta_true=None, phi=phi, sep_dist_func=sep_L2
             )
-
+            print(x_diff_train)
             x_diff_train_hist[p_index, run, N_index] = x_diff_train
+            print(x_diffs_train)
+            x_diffs_train_hist[p_index, run, N_index, :] = x_diffs_train
             #obj_diff_train_hist[p_index, run, N_index] = obj_diff_train
             x_diff_test_hist[p_index, run, N_index] = x_diff_test
+            x_diffs_test_hist[p_index, run, N_index, :] = x_diffs_test
             #obj_diff_test_hist[p_index, run, N_index] = obj_diff_test
             #theta_diff_hist[p_index, run, N_index] = theta_diff
 
@@ -314,7 +320,8 @@ for p_index, approach in enumerate(approaches):
     print(theta_IOs)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%% Plot results %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+print(x_diff_train_hist)
+print(len(x_diff_train_hist))
 results = {}
 results['approaches'] = approaches
 results['N_list'] = N_list
@@ -323,4 +330,6 @@ results['x_diff_train_hist'] = x_diff_train_hist
 results['x_diff_test_hist'] = x_diff_test_hist
 #results['obj_diff_train_hist'] = obj_diff_train_hist
 #results['obj_diff_test_hist'] = obj_diff_test_hist
+results['x_diffs_train_hist'] = x_diffs_train_hist
+results['x_diffs_test_hist'] = x_diffs_test_hist
 plot_results(results)
