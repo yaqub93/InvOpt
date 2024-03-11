@@ -12,6 +12,7 @@ from gurobipy import Model, GRB, quicksum
 
 sys.path.append(dirname(dirname(abspath(__file__))))  # nopep8
 from utils_examples import L2, plot_results
+sys.path.append("src")
 
 import invopt as iop
 

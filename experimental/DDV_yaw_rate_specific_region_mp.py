@@ -20,6 +20,8 @@ import invopt as iop
 
 np.random.seed(0)
 
+import multiprocessing
+from functools import partial
 
 def theta_to_Qq(theta, n):
     """Extract Q and q from cost vector theta."""
@@ -141,15 +143,15 @@ def phi(s, x):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%% Simulation parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 import pickle
-file_path = "dataset/dataset_cog_at_t5.pkl"
+file_path = "dataset/dataset_cog_samso_belt_at_t5.pkl"
 with open(file_path, 'rb') as file:
     dataset = pickle.load(file)
 feature_names = list(dataset.keys())
-
+print("original size:",len(dataset[feature_names[0]]))
 import random 
 
 # Sample indices to select elements from lists
-sample_indices = random.sample(range(len(dataset[feature_names[0]])), k=2000)  # Change 'k' to the desired sample size
+sample_indices = random.sample(range(len(dataset[feature_names[0]])), k=16000)  # Change 'k' to the desired sample size
 
 # Sample elements from both lists using the sampled indices
 dataset = {feature_names[0]: [dataset[feature_names[0]][i] for i in sample_indices],
@@ -172,6 +174,7 @@ noise_level = 0
 kappa = 0
 resolution = 10
 runs = 3
+N_PROCESS = int(multiprocessing.cpu_count())
 
 print('')
 print(f'N_train = {N_train}')
@@ -264,6 +267,33 @@ x_diff_test_hist = np.empty((len_appr, runs, resolution))
 #obj_diff_train_hist = np.empty((len_appr, runs, resolution))
 #obj_diff_test_hist = np.empty((len_appr, runs, resolution))
 
+def process_N(args):
+    # run, N, dataset_train, dataset_test, phi1, add_y, kappa, solver, verbose, quadratic_FOP, L2, phi = args
+    run, N_index, N, dataset_train_runs, dataset_test_runs, phi1, add_y, kappa, solver, verbose, quadratic_FOP, L2, phi = args
+    
+    dataset_train = dataset_train_runs[run]
+    dataset_test = dataset_test_runs[run]
+    
+    theta_IO = iop.continuous_quadratic(dataset_train[:N],
+                                        phi1,
+                                        add_dist_func_y=add_y,
+                                        reg_param=kappa,
+                                        solver=solver,
+                                        verbose=verbose)
+
+    x_diff_train = iop.evaluate(
+        theta_IO, dataset_train[:N], quadratic_FOP, L2,
+        theta_true=None, phi=phi
+    )
+
+    x_diff_test = iop.evaluate(
+        theta_IO, dataset_test, quadratic_FOP, L2,
+        theta_true=None, phi=phi
+    )
+
+    return run, N_index, x_diff_train, x_diff_test, theta_IO
+
+
 gap = round(N_train/resolution)
 N_list = np.linspace(gap, N_train, resolution, dtype=int).tolist()
 for p_index, approach in enumerate(approaches):
@@ -276,51 +306,37 @@ for p_index, approach in enumerate(approaches):
 
     theta_IOs = []
     tic = time.time()
+    pool = multiprocessing.Pool(processes=N_PROCESS)  # Create a pool of processes
+    
+    run_args = []
     for run in range(runs):
-        dataset_train = dataset_train_runs[run]
-        dataset_test = dataset_test_runs[run]
-        #theta_true = theta_true_runs[run]
-
-        for N_index, N in enumerate(N_list): 
-            theta_IO = iop.continuous_quadratic(dataset_train[:N],
-                                                phi1,
-                                                add_dist_func_y=add_y,
-                                                reg_param=kappa,
-                                                solver=solver,
-                                                verbose=verbose)
-            theta_IOs.append(theta_IO)
-            x_diff_train = iop.evaluate(
-                theta_IO, dataset_train[:N], quadratic_FOP, L2,
-                theta_true=None, phi=phi
-            )
-
-            x_diff_test = iop.evaluate(
-                theta_IO, dataset_test, quadratic_FOP, L2,
-                theta_true=None, phi=phi
-            )
-
-            x_diff_train_hist[p_index, run, N_index] = x_diff_train
-            #obj_diff_train_hist[p_index, run, N_index] = obj_diff_train
-            x_diff_test_hist[p_index, run, N_index] = x_diff_test
-            #obj_diff_test_hist[p_index, run, N_index] = obj_diff_test
-            #theta_diff_hist[p_index, run, N_index] = theta_diff
-
-        print(f'{round(100*(run+1)/runs)}%')
-
+        for N_index, N in enumerate(N_list):
+            run_args.append([run, N_index, N, dataset_train_runs, dataset_test_runs, phi1, add_y, kappa, solver, verbose, quadratic_FOP, L2, phi])
+    results = pool.map(process_N, run_args)  # Map the function to each run using the pool
+    pool.close()  # Close the pool to prevent any more tasks from being submitted to it
+    pool.join()
     toc = time.time()
     print(f"Simulation time = {round(toc-tic,2)} seconds")
     print('')
-    print(len(theta_IOs))
-    print(theta_IOs)
+    print("CPU count",N_PROCESS)
+    #print(len(theta_IOs))
+    #print(theta_IOs)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%% Plot results %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+theta_IOs = []
+for N_results in results:
+    x_diff_train_hist[p_index, N_results[0], N_results[1]] = N_results[2]
+    x_diff_test_hist[p_index, N_results[0], N_results[1]] = N_results[3]
+    theta_IOs.append(N_results[4])
 
-results = {}
-results['approaches'] = approaches
-results['N_list'] = N_list
+print(len(theta_IOs))
+
+final_results = {}
+final_results['approaches'] = approaches
+final_results['N_list'] = N_list
 #results['theta_diff_hist'] = theta_diff_hist
-results['x_diff_train_hist'] = x_diff_train_hist
-results['x_diff_test_hist'] = x_diff_test_hist
+final_results['x_diff_train_hist'] = x_diff_train_hist
+final_results['x_diff_test_hist'] = x_diff_test_hist
 #results['obj_diff_train_hist'] = obj_diff_train_hist
 #results['obj_diff_test_hist'] = obj_diff_test_hist
-plot_results(results)
+plot_results(final_results)

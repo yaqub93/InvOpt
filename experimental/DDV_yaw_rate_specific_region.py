@@ -141,15 +141,15 @@ def phi(s, x):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%% Simulation parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 import pickle
-file_path = "dataset/dataset_cog_at_t5.pkl"
+file_path = "dataset/dataset_cog_samso_belt_at_t.pkl"
 with open(file_path, 'rb') as file:
     dataset = pickle.load(file)
 feature_names = list(dataset.keys())
-
+print("original size:",len(dataset[feature_names[0]]))
 import random 
 
 # Sample indices to select elements from lists
-sample_indices = random.sample(range(len(dataset[feature_names[0]])), k=2000)  # Change 'k' to the desired sample size
+sample_indices = random.sample(range(len(dataset[feature_names[0]])), k=100)  # Change 'k' to the desired sample size
 
 # Sample elements from both lists using the sampled indices
 dataset = {feature_names[0]: [dataset[feature_names[0]][i] for i in sample_indices],

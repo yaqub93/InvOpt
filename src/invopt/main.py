@@ -1345,7 +1345,12 @@ def mixed_integer_quadratic(
         constraints += [cp.trace(Qyy) == 1]
 
     prob = cp.Problem(obj, constraints)
-    prob.solve(verbose=verbose, solver=cp.MOSEK)
+    #prob.solve(verbose=verbose, solver=cp.MOSEK)
+
+    msk_param_dict = {}
+    msk_param_dict['MSK_IPAR_PRESOLVE_USE'] = 0
+    msk_param_dict['MSK_IPAR_NUM_THREADS'] = 0
+    prob.solve(verbose=verbose, solver=cp.MOSEK, mosek_params=msk_param_dict)
 
     if prob.status != 'optimal':
         raise Exception(

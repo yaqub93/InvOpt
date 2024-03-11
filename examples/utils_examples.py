@@ -104,6 +104,14 @@ def mean_percentiles(data, p1=5, p2=95):
     return mean, perc1, perc2
 
 
+def save_figure_with_datetime(image_name):
+    import datetime, os
+    output_folder = "output"
+    current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{current_datetime}_figure_{image_name}.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path)
+
 def plot_results(results):
     """Plot results."""
     approaches = results['approaches']
@@ -151,6 +159,7 @@ def plot_results(results):
         # plt.legend(fontsize='14', loc='upper right')
         plt.legend(fontsize='12', loc='upper left')
         plt.tight_layout()
+        save_figure_with_datetime("theta_diff_mean")
 
         plt.figure(2)
         plt.plot(N_list, x_diff_train_mean, c=color, label=approach)
@@ -167,6 +176,7 @@ def plot_results(results):
         # plt.legend(fontsize='14', loc='upper right')
         plt.legend(fontsize='12', loc='lower left', ncol=1)
         plt.tight_layout()
+        save_figure_with_datetime("x_diff_train_mean")
 
         plt.figure(3)
         plt.plot(N_list, obj_diff_train_mean, c=color, label=approach)
@@ -184,6 +194,7 @@ def plot_results(results):
         # plt.legend(fontsize='14', loc='upper right')
         plt.legend(fontsize='12', loc='lower left', ncol=1)
         plt.tight_layout()
+        save_figure_with_datetime("obj_diff_train_mean")
 
         plt.figure(4)
         plt.plot(N_list, x_diff_test_mean, c=color, label=approach)
@@ -199,6 +210,7 @@ def plot_results(results):
         # plt.legend(fontsize='14', loc='upper right')
         plt.legend(fontsize='12', loc='lower left', ncol=1)
         plt.tight_layout()
+        save_figure_with_datetime("x_diff_test_mean")
 
         plt.figure(5)
         plt.plot(N_list, obj_diff_test_mean, c=color, label=approach)
@@ -216,5 +228,6 @@ def plot_results(results):
         # plt.legend(fontsize='14', loc='upper right')
         plt.legend(fontsize='12', loc='lower left', ncol=1)
         plt.tight_layout()
+        save_figure_with_datetime("obj_diff_test_mean")
 
         plt.show()
