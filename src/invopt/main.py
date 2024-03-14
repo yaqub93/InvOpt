@@ -7,6 +7,10 @@ Author: Pedro Zattoni Scroccaro
 import numpy as np
 import warnings
 
+import sys
+sys.path.append('../../')
+
+from experimental.utils_examples_ import sep_L2
 
 def check_Theta(Theta):
     """Check if Theta is valid."""
@@ -240,7 +244,7 @@ def evaluate(
     theta_true=None,
     phi=None,
     scale_obj_diff=True,
-    sep_dist_func = None
+    sep_dist_func = sep_L2
 ):
     """
     Evaluate cost vector theta.
