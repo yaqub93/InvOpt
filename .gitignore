@@ -6,7 +6,7 @@ dist/
 
 old/
 output/
-dataset/
+#dataset/
 
 src/invopt.egg-info/
 
