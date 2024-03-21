@@ -10,6 +10,10 @@ import warnings
 import sys
 sys.path.append('../../')
 
+from os.path import dirname, abspath
+
+sys.path.append(dirname(dirname(abspath(__file__)))+"/../")  # nopep8
+print(sys.path)
 from experimental.utils_examples_ import sep_L2
 
 def check_Theta(Theta):
