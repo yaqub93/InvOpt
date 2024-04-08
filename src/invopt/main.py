@@ -1135,6 +1135,140 @@ def mixed_integer_linear(
     return theta_opt
 
 
+def ais_quadratic(dataset,
+    Theta=None,
+    regularizer='L2_squared',
+    reg_param=10000,
+    theta_hat=None,
+    add_dist_func_y=False,
+    solver=None,
+    verbose=False):
+    import cvxpy as cp
+    
+    N = len(dataset)
+
+    # Sample a signal and response to get the dimensions of the problem
+    s_test, x_test = dataset[0]
+    A_test, B_test, w_test = s_test
+    #m =  #len(phi1(w_test, z_test))
+    #r =  #len(phi2(w_test, z_test))
+    t, u = A_test.shape
+    n = len(x_test)
+    m = len(w_test)
+    
+    Qxx = cp.Variable(n)
+    Qww = cp.Variable(m)
+
+    beta = cp.Variable(N)
+    
+    constraints = []
+
+    sum_beta = (1/N)*cp.sum(beta)
+    
+    constraints += [Qxx >= 0, Qww >= 0]
+    
+    cardinality = 1
+    decision_space = "binary"
+    v = 0
+    def ind_func(w, z): return True
+    dist_func_z=None
+    for i in range(N):
+        s_hat, x_hat = dataset[i]
+        A, B, w_hat = s_hat
+        for k in range(cardinality):
+            z = candidate_action(k, decision_space, v)
+            if ind_func(w_hat, z):
+                #if dist_func_z is None:
+                #    dist_z = 0
+                #else:
+                #    try:
+                #        dist_z = dist_func_z(z_hat, z)
+                #    except TypeError:
+                #        dist_z = dist_func_z(z_hat, z, w_hat)
+
+                if add_dist_func_y:
+                    gamma_list = []
+                    for index in range(n):
+                        gamma = np.zeros(n)
+                        gamma[index] = 1
+                        gamma_list.append(gamma)
+                    for index in range(n):
+                        gamma = np.zeros(n)
+                        gamma[index] = -1
+                        gamma_list.append(gamma)
+                else:
+                    gamma_list = [np.zeros(n)]
+
+                for gamma in gamma_list:
+                    #alpha = cp.Variable((1, 1))
+                    #lamb = cp.Variable((t, 1))
+
+                    theta_phi_hat = (
+                        Qxx[0]*x_hat[0]*x_hat[0]
+                        + Qxx[1]*x_hat[1]*x_hat[1]
+                        + Qww[0]*w_hat[0]*w_hat[0]
+                        + Qww[1]*w_hat[1]*w_hat[1]
+                        + Qww[2]*w_hat[2]*w_hat[2]
+                        + Qww[3]*w_hat[3]*w_hat[3]
+                    )
+
+                    #qphi2 = q.T @ phi2(w_hat, z)
+
+                    #gammax_hat = gamma * x_hat
+
+                    constraints += [
+                        theta_phi_hat #+ gammax_hat
+                         <= beta[i]
+                    ]
+
+                    #off_diag = (
+                    #    Q @ phi1(w_hat, z).reshape((m, 1)) + A.T @ lamb
+                    #    + gamma.reshape((u, 1))
+                    #)
+                    #constraints += [
+                    #    cp.bmat([[Qyy, off_diag], [off_diag.T, 4*alpha]]) >> 0
+                    #]
+                    
+    Qxx_hat = np.zeros(n)
+    Qww_hat = np.zeros(m)
+    
+    if reg_param > 0:
+        if regularizer == 'L2_squared':
+            Qxx_sum = cp.sum_squares(Qxx - Qxx_hat)
+            Qww_sum = cp.sum_squares(Qww - Qww_hat)
+            reg_term = (reg_param/2)*(Qxx_sum + Qww_sum)
+        elif regularizer == 'L1':
+            tQxx = cp.Variable((n, 1))
+            tQww = cp.Variable((m, 1))
+            reg_term = reg_param*(cp.sum(tQxx) + cp.sum(tQww))
+            constraints += [Qxx - Qxx_hat <= tQxx, Qxx_hat - Qxx <= tQxx]
+            constraints += [Qww - Qww_hat <= tQww, Qww_hat - Qww <= tQww]
+    else:
+        reg_term = 0
+        
+    obj = cp.Minimize(reg_term + sum_beta)
+
+    # Check if the trace equality constraint needs to be added to avoid the
+    # trivial solution theta=0
+    constraints += [cp.sum(Qxx)+cp.sum(Qww) == 1]
+    
+    prob = cp.Problem(obj, constraints)
+    #prob.solve(verbose=verbose, solver=cp.MOSEK)
+
+    msk_param_dict = {}
+    msk_param_dict['MSK_IPAR_PRESOLVE_USE'] = 0
+    msk_param_dict['MSK_IPAR_NUM_THREADS'] = 0
+    prob.solve(verbose=verbose, solver=cp.MOSEK, mosek_params=msk_param_dict)
+
+    Qxx_opt = Qxx.value
+    Qww_opt = Qww.value
+
+    theta_opt = np.concatenate(
+        (Qxx_opt.flatten('F'), Qww_opt.flatten('F'))
+    )
+    return theta_opt
+    
+
 def mixed_integer_quadratic(
     dataset,
     Z,
@@ -1268,7 +1402,8 @@ def mixed_integer_quadratic(
 
     if Theta == 'nonnegative':
         constraints += [Q >= 0, q >= 0]
-
+    print("=============================================")
+    print(cardinality, decision_space, v)
     for i in range(N):
         s_hat, x_hat = dataset[i]
         y_hat, z_hat = x_hat
