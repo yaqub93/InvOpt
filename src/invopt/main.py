@@ -716,6 +716,7 @@ def continuous_linear(
 def continuous_quadratic(
     dataset,
     phi1=None,
+    phi2=None,
     add_dist_func_y=False,
     Theta=None,
     regularizer='L2_squared',
@@ -740,6 +741,10 @@ def continuous_quadratic(
         Feature function. Given w and response z, returns a 1D
         ndarray feature vector. Syntax: phi1(w, z). If None, it will be defined
         as "def phi1(w, z): return np.array([0])". The default is None.
+    phi2 : {callable, None}, optional
+        Feature function. Given w and response z, returns a 1D
+        ndarray feature vector. Syntax: phi2(w, z). If None, it will be defined
+        as "def phi2(w, z): return np.array([0])". The default is None.
     add_dist_func_y: bool, optional
         If True, adds l-infinity distance penalization to the continuous part
         of the response vector. The default is 'None'.
@@ -785,11 +790,13 @@ def continuous_quadratic(
         dataset_mod.append((s_hat_mod, x_hat_mod))
 
     def phi1_mod(w, z): return phi1(w)
+    def phi2_mod(w, z): return phi2(w)
 
     theta_opt_mod = mixed_integer_quadratic(
         dataset_mod,
         Z,
         phi1=phi1_mod,
+        phi2=phi2_mod,
         add_dist_func_y=add_dist_func_y,
         Theta=Theta,
         regularizer=regularizer,
@@ -1392,7 +1399,8 @@ def mixed_integer_quadratic(
     t, u = A_test.shape
 
     Qyy = cp.Variable((u, u), PSD=True)
-    Q = cp.Variable((u, m))
+    if m > 0:
+        Q = cp.Variable((u, m))
     q = cp.Variable((r, 1))
     beta = cp.Variable(N)
 
@@ -1401,7 +1409,10 @@ def mixed_integer_quadratic(
     sum_beta = (1/N)*cp.sum(beta)
 
     if Theta == 'nonnegative':
-        constraints += [Q >= 0, q >= 0]
+        if m > 0:
+            constraints += [Q >= 0, q >= 0]
+        else:
+            constraints += [q >= 0]
     print("=============================================")
     print(cardinality, decision_space, v)
     for i in range(N):
@@ -1436,11 +1447,17 @@ def mixed_integer_quadratic(
                     alpha = cp.Variable((1, 1))
                     lamb = cp.Variable((t, 1))
 
-                    theta_phi_hat = (
-                        y_hat.T @ Qyy @ y_hat
-                        + y_hat.T @ Q @ phi1(w_hat, z_hat)
-                        + q.T @ phi2(w_hat, z_hat)
-                    )
+                    if m > 0:
+                        theta_phi_hat = (
+                            y_hat.T @ Qyy @ y_hat
+                            + y_hat.T @ Q @ phi1(w_hat, z_hat)
+                            + q.T @ phi2(w_hat, z_hat)
+                        )
+                    else:
+                        theta_phi_hat = (
+                            y_hat.T @ Qyy @ y_hat
+                            + q.T @ phi2(w_hat, z_hat)
+                        )
 
                     lambcBz = lamb.T @ (c - B @ z)
 
@@ -1453,10 +1470,17 @@ def mixed_integer_quadratic(
                         + dist_z <= beta[i]
                     ]
 
-                    off_diag = (
-                        Q @ phi1(w_hat, z).reshape((m, 1)) + A.T @ lamb
-                        + gamma.reshape((u, 1))
-                    )
+                    if m > 0:
+                        off_diag = (
+                            Q @ phi1(w_hat, z).reshape((m, 1)) + A.T @ lamb
+                            + gamma.reshape((u, 1))
+                        )
+                    else:
+                        off_diag = (
+                            A.T @ lamb
+                            + gamma.reshape((u, 1))
+                        )
+                        
                     constraints += [
                         cp.bmat([[Qyy, off_diag], [off_diag.T, 4*alpha]]) >> 0
                     ]
@@ -1465,25 +1489,33 @@ def mixed_integer_quadratic(
     if reg_param > 0:
         if theta_hat is None:
             Qyy_hat = np.zeros((u, u))
-            Q_hat = np.zeros((u, m))
+            if m > 0:
+                Q_hat = np.zeros((u, m))
             q_hat = np.zeros((r, 1))
         else:
             Qyy_hat = theta_hat[:u**2].reshape((u, u))
-            Q_hat = theta_hat[u**2:-r].reshape((u, m))
+            if m > 0:
+                Q_hat = theta_hat[u**2:-r].reshape((u, m))
             q_hat = theta_hat[-r:].reshape((r, 1))
 
         if regularizer == 'L2_squared':
             Qyy_sum = cp.sum_squares(Qyy - Qyy_hat)
-            Q_sum = cp.sum_squares(Q - Q_hat)
+            if m > 0:
+                Q_sum = cp.sum_squares(Q - Q_hat)
             q_sum = cp.sum_squares(q - q_hat)
-            reg_term = (reg_param/2)*(Qyy_sum + Q_sum + q_sum)
+            if m > 0:
+                reg_term = (reg_param/2)*(Qyy_sum + Q_sum + q_sum)
+            else:
+                reg_term = (reg_param/2)*(Qyy_sum + q_sum)
         elif regularizer == 'L1':
             tQyy = cp.Variable((u, u), symmetric=True)
-            tQ = cp.Variable((u, m))
+            if m > 0:
+                tQ = cp.Variable((u, m))
             tq = cp.Variable((r, 1))
             reg_term = reg_param*(cp.sum(tQyy) + cp.sum(tQ) + cp.sum(tq))
             constraints += [Qyy - Qyy_hat <= tQyy, Qyy_hat - Qyy <= tQyy]
-            constraints += [Q - Q_hat <= tQ, Q_hat - Q <= tQ]
+            if m > 0:
+                constraints += [Q - Q_hat <= tQ, Q_hat - Q <= tQ]
             constraints += [q - q_hat <= tq, q_hat - q <= tq]
     else:
         reg_term = 0
@@ -1511,12 +1543,19 @@ def mixed_integer_quadratic(
         )
 
     Qyy_opt = Qyy.value
-    Q_opt = Q.value
+    if m > 0:
+        Q_opt = Q.value
     q_opt = q.value
 
-    theta_opt = np.concatenate(
-        (Qyy_opt.flatten('F'), Q_opt.flatten('F'), q_opt.flatten('F'))
-    )
+    if m > 0:
+        theta_opt = np.concatenate(
+            (Qyy_opt.flatten('F'), Q_opt.flatten('F'), q_opt.flatten('F'))
+        )
+    else:
+        theta_opt = np.concatenate(
+            (Qyy_opt.flatten('F'), q_opt.flatten('F'))
+        )
+        
     return theta_opt
 
 

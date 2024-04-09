@@ -62,7 +62,7 @@ def quadratic_FOP(theta, s):
     
     A, b, w = s
     n = 1
-    t = 4
+    t = 2
     Qxx, qx = theta_to_Qq(theta, n)
 
     # if len(theta) != (n**2 + n):
@@ -74,7 +74,7 @@ def quadratic_FOP(theta, s):
 
     mdl.setObjective(
         quicksum(Qxx[i]*x[i]*x[i] for i in range(n))
-        + quicksum(qx[i]*x[0]*w[i] for i in range(t)),
+        + quicksum(qx[i]*w[i] for i in range(t)),
         GRB.MINIMIZE
     )
 
@@ -96,23 +96,28 @@ def quadratic_FOP(theta, s):
 
 def phi1(w):
     """Feature mapping."""
-    return w #np.array([w])
+    return np.array([])
+
+def phi2(w):
+    """Feature mapping."""
+    return np.array(w) #np.array([w])
 
 def phi(s, x):
     """Transform phi1 into phi for continuous quadratic case."""
     _, _, w = s
-    return np.concatenate((x**2, w**2))
+    return np.concatenate((x**2, w))
 
 def load_data(train_test_slip, num_sample = 100):
-
     import pandas as pd
     file_path = "dataset/filtered_out3.csv"
     df = pd.read_csv(file_path)
     X = df[["cog_dot"]]
-    S = df[["distance", "DDV", "distance_dot", "DDV_dot"]]
+    #S = df[["distance", "DDV", "distance_dot", "DDV_dot"]]
+    S = df[["distance", "DDV"]]
     X = X / np.abs(X).max()
     S = S / np.abs(S).max()
-    constraint = np.min(df["cog_dot"]), np.max(df["cog_dot"]), np.min(df["sog_dot"]), np.max(df["sog_dot"])
+    #constraint = np.min(df["cog_dot"]), np.max(df["cog_dot"]), np.min(df["sog_dot"]), np.max(df["sog_dot"])
+    constraint = np.min(df["cog_dot"]), np.max(df["cog_dot"])
     #print(feature_values)
     from sklearn.model_selection import train_test_split
     train_samples = int(num_sample*(1-train_test_slip))
@@ -128,35 +133,8 @@ def IO_preprocessing(S_train, X_train, S_test, X_test, constraint):
     """Preprocess data for IO."""
     #A = -np.eye(1)
     #B = np.zeros((1, 1))
-    A = np.array([-1,1,-1,1]).reshape((4,1))
-    B = np.array([np.abs(constraint[0]),constraint[1], np.abs(constraint[2]),constraint[3]])
-
-    N_train = len(S_train)
-    N_test = len(S_test)
-
-    # Create dataset for IO
-    dataset_train = []
-    for i in range(N_train):
-        s_hat = (A, B, S_train[i,:])
-        x_hat = (X_train[i,:].T)
-        dataset_train.append((s_hat, x_hat))
-
-    dataset_test = []
-    for i in range(N_test):
-        s_hat = (A, B, S_test[i,:])
-        x_hat = (X_test[i,:].T)
-        dataset_test.append((s_hat, x_hat))
-
-    return dataset_train, dataset_test
-
-def IO_preprocessing2(S_train, X_train, S_test, X_test, constraint):
-    """Preprocess data for IO."""
-    #A = -np.eye(1)
-    #B = np.zeros((1, 1))
-    #A = np.array([-1]).reshape((1,1))
-    A = np.array([-1,1,-1,1]).reshape((4,1))
-    B = np.array([np.abs(constraint[0]),constraint[1], np.abs(constraint[2]),constraint[3]])
-    #B = np.array([np.abs(constraint[0])])
+    A = np.array([-1,1]).reshape((2,1))
+    B = np.array([np.abs(constraint[0]),constraint[1]])
 
     N_train = len(S_train)
     N_test = len(S_test)
@@ -185,7 +163,7 @@ def dist_x(x1, x2):
 
 train_test_slip = 0.1
 runs = 3
-max_sample = 5000
+max_sample = 500
 min_sample = 10
 num_samples = []
 
@@ -244,12 +222,13 @@ y_diff_test_sk_hist = np.empty((len(num_samples),runs))
 def process_run(args):
     idx, num_sample, run = args
     S_train, X_train, S_test, X_test, constraint = load_data(train_test_slip, num_sample = num_sample)
-    dataset_train, dataset_test = IO_preprocessing2(
+    dataset_train, dataset_test = IO_preprocessing(
         S_train, X_train, S_test, X_test, constraint
     )
 
     theta_IO = iop.continuous_quadratic(dataset_train,
                                            phi1=phi1,
+                                           phi2=phi2,
                                            reg_param=kappa,
                                            add_dist_func_y=add_y)
     print("theta_IO", theta_IO)
@@ -263,23 +242,21 @@ def process_run(args):
     y_diff_train_sk = np.mean(np.sqrt((reg.predict(S_train) - X_train)**2))
     y_diff_test_sk = np.mean(np.sqrt((reg.predict(S_test) - X_test)**2))
 
-    r2_train = r2_score(reg.predict(S_train), X_train)
-    r2_test = r2_score(reg.predict(S_test), X_test)
-    return idx, run, y_diff_train, y_diff_test, y_diff_train_sk, y_diff_test_sk, theta_IO, r2_train, r2_test
+    return idx, run, y_diff_train, y_diff_test, y_diff_train_sk, y_diff_test_sk, theta_IO, reg.predict(S_train), X_train, reg.predict(S_test), X_test
 
 tic = time.time()
-#pool = multiprocessing.Pool(processes=N_PROCESS)  # Create a pool of processes
+pool = multiprocessing.Pool(processes=N_PROCESS)  # Create a pool of processes
 
 run_args = []
 for i,num_sample in enumerate(num_samples):
     for run in range(runs):
         run_args.append([i,num_sample, run])
-
+"""
 results = []
 for args in run_args:
     idx, num_sample, run = args
     S_train, X_train, S_test, X_test, constraint = load_data(train_test_slip, num_sample = num_sample)
-    dataset_train, dataset_test = IO_preprocessing2(
+    dataset_train, dataset_test = IO_preprocessing(
         S_train, X_train, S_test, X_test, constraint
     )
 
@@ -302,12 +279,12 @@ for args in run_args:
     r2_test = r2_score(reg.predict(S_test), X_test)
     result = (idx, run, y_diff_train, y_diff_test, y_diff_train_sk, y_diff_test_sk, theta_IO, r2_train, r2_test)
     results.append(result)
-#results = pool.map(process_run, run_args)  # Map the function to each run using the pool
-#pool.close()  # Close the pool to prevent any more tasks from being submitted to it
-#pool.join()
+"""
+results = pool.map(process_run, run_args)  # Map the function to each run using the pool
+pool.close()  # Close the pool to prevent any more tasks from being submitted to it
+pool.join()
 toc = time.time()
 print(f"Simulation time = {round(toc-tic,2)} seconds")
-
 
 theta_IOs = {}
 for result in results:
